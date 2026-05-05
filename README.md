@@ -1,1 +1,1 @@
-git clone https://github.com/GodAzrail/VisitMaster.git && cd VisitMaster && chmod +x setup.sh && ./setup.sh
+sudo systemctl stop tg_booking_* 2>/dev/null; rm -rf /home/azrail/VisitMaster && cd /home/azrail && curl -O https://raw.githubusercontent.com/GodAzrail/VisitMaster/main/setup.sh && chmod +x setup.sh && ./setup.sh
