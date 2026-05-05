@@ -4,13 +4,19 @@ from zoneinfo import ZoneInfo
 
 load_dotenv()
 
+# Основные токены и ID
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-BOT_NAME = os.getenv("BOT_NAME", "tg_booking_bot") # Имя для systemd
-DB_PATH = "bot_database.db"
-TIMEZONE_STR = os.getenv("TIMEZONE", "Europe/Moscow")
-TZ = ZoneInfo(TIMEZONE_STR)
 SUPER_ADMIN_ID = int(os.getenv("SUPER_ADMIN_ID", 0))
 
+# Настройки времени
+TIMEZONE_STR = os.getenv("TIMEZONE", "Asia/Krasnoyarsk")
+TZ = ZoneInfo(TIMEZONE_STR)
+
+# Пути и имена
+DB_PATH = "bot_database.db"
+BOT_NAME = os.getenv("BOT_NAME", "tg_booking_bot")
+
+# Конфигурация планировщика
 SCHEDULER_CONFIG = {
     'apscheduler.jobstores.default': {
         'type': 'sqlalchemy',

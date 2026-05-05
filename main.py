@@ -3,34 +3,41 @@ import logging
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 
-# Гибкий импорт для обхода ошибок в новых версиях Python/APScheduler
+# Исправленный импорт: IO всегда заглавными в APScheduler 3.x
 try:
-    from apscheduler.schedulers.asyncio import AsyncioScheduler
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
 except ImportError:
     import apscheduler.schedulers.asyncio
-    AsyncioScheduler = apscheduler.schedulers.asyncio.AsyncioScheduler
+    AsyncIOScheduler = apscheduler.schedulers.asyncio.AsyncIOScheduler
 
 from config import BOT_TOKEN, SCHEDULER_CONFIG
 from database import init_db
 
 # Настройка логирования
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, 
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
-scheduler = AsyncioScheduler(config=SCHEDULER_CONFIG)
+# Используем корректное имя класса
+scheduler = AsyncIOScheduler(config=SCHEDULER_CONFIG)
 
 async def on_startup():
+    # Инициализация БД
     await init_db()
+    # Запуск планировщика, если он еще не запущен
     if not scheduler.running:
         scheduler.start()
     logging.info("Бот успешно запущен и готов к работе.")
 
 async def main():
-    # Импорт роутеров здесь во избежание круговых импортов
-    # dp.include_router(user_router)
-    
+    # Регистрация обработчика запуска
     dp.startup.register(on_startup)
+    
+    # Здесь подключаются ваши роутеры (user_router, admin_router)
+    
     try:
         await dp.start_polling(bot)
     finally:
