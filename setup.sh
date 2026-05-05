@@ -159,19 +159,22 @@ view_logs() {
 
 while true; do
     show_header
-    echo -e "1. Install New Bot (Clone to New Folder)"
-    echo -e "2. List Status"
-    echo -e "3. Control (Start/Stop/Restart)"
-    echo -e "4. View Logs"
-    echo -e "5. ${RED}Delete Bot & Folder${NC}"
-    echo -e "6. Exit"
-    read -p "Действие: " choice
+    echo -e "  ${BLUE}1.${NC} Установить нового бота (Клонировать в новую папку)"
+    echo -e "  ${BLUE}2.${NC} Список ботов и их статус"
+    echo -e "  ${BLUE}3.${NC} Управление (Старт/Стоп/Перезагрузка)"
+    echo -e "  ${BLUE}4.${NC} Просмотр логов"
+    echo -e "  ${BLUE}5.${NC} ${RED}Удалить бота и его папку${NC}"
+    echo -e "  ${BLUE}6.${NC} Выход"
+    echo -ne "\n${BOLD}Выберите действие [1-6]: ${NC}"
+    read choice
+
     case $choice in
-        1) install_bot; read -p "Enter..." ;;
-        2) list_bots; read -p "Enter..." ;;
-        3) manage_bots; read -p "Enter..." ;;
-        4) view_logs; read -p "Enter..." ;;
-        5) delete_bot; read -p "Enter..." ;;
-        6) exit 0 ;;
+        1) install_bot; echo -ne "\nНажмите Enter для продолжения..."; read ;;
+        2) list_bots; echo -ne "\nНажмите Enter для продолжения..."; read ;;
+        3) manage_bots; echo -ne "\nНажмите Enter для продолжения..."; read ;;
+        4) view_logs; echo -ne "\nНажмите Enter для продолжения..."; read ;;
+        5) delete_bot; echo -ne "\nНажмите Enter для продолжения..."; read ;;
+        6) msg "Завершение работы. До свидания!"; exit 0 ;;
+        *) error "Неверный выбор! Попробуйте снова."; sleep 1 ;;
     esac
 done
