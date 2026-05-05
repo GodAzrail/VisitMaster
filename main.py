@@ -1,76 +1,66 @@
 import asyncio
 import logging
-import os
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 
-# 1. Импорт настроек и базы данных
+# 1. Импорт конфига и БД
 from config import BOT_TOKEN, SCHEDULER_CONFIG
 from database import init_db
 
-# 2. Попытка импорта ваших обработчиков
-# ВНИМАНИЕ: Проверьте, что папка 'handlers' существует и в ней есть файлы 'user.py' и 'admin.py'
+# 2. Импорт ВСЕХ модулей с роутерами
+# Мы импортируем их напрямую, так как папки handlers нет
 try:
-    from handlers.user import router as user_router
-    from handlers.admin import router as admin_router
+    from user_handlers import router as user_router
+    from admin_appointments import router as admin_app_router
+    from admin_broadcast import router as admin_br_router
+    from admin_reviews import router as admin_rev_router
+    from admin_schedule import router as admin_sch_router
+    from admin_services import router as admin_ser_router
+    from admin_statistics import router as admin_stat_router
+    from user_reviews import router as user_rev_router
+    # Добавьте остальные, если в них есть router
     HAS_HANDLERS = True
 except ImportError as e:
-    logging.warning(f"Не удалось импортировать обработчики: {e}")
-    logging.warning("Бот запущен в РЕЖИМЕ ОЖИДАНИЯ. Проверьте структуру папок и наличие файлов в handlers/")
+    logging.error(f"Ошибка импорта: {e}")
     HAS_HANDLERS = False
 
 # Настройка логирования
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# 3. Настройка планировщика (APScheduler)
+# Починка импорта планировщика для Python 3.13
 try:
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
 except ImportError:
-    # Запасной вариант для разных версий библиотеки
     import apscheduler.schedulers.asyncio
     AsyncIOScheduler = apscheduler.schedulers.asyncio.AsyncIOScheduler
 
-scheduler = AsyncIOScheduler(config=SCHEDULER_CONFIG)
-
-# Инициализация бота и диспетчера
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
+scheduler = AsyncIOScheduler(config=SCHEDULER_CONFIG)
 
 async def on_startup():
-    """Функция, выполняемая при запуске бота"""
-    # Инициализация базы данных (создание таблиц)
     await init_db()
-    
-    # Запуск планировщика задач
     if not scheduler.running:
         scheduler.start()
-    
-    logging.info("--- СИСТЕМА ГОТОВА: Бот авторизован и запущен ---")
+    logging.info("Бот успешно инициализирован.")
 
 async def main():
-    # Регистрация обработчика запуска
     dp.startup.register(on_startup)
-    
-    # 4. ПОДКЛЮЧЕНИЕ РОУТЕРОВ
-    # Если файлы найдены, подключаем их к основному диспетчеру
+
+    # 3. Регистрация ВСЕХ роутеров в диспетчере
     if HAS_HANDLERS:
         dp.include_router(user_router)
-        dp.include_router(admin_router)
-        logging.info("Все обработчики (user, admin) успешно подключены.")
-    
-    try:
-        # Очищаем очередь накопившихся сообщений и запускаем прослушивание
-        await bot.delete_webhook(drop_pending_updates=True)
-        await dp.start_polling(bot)
-    finally:
-        # Закрываем соединение при остановке
-        await bot.session.close()
+        dp.include_router(admin_app_router)
+        dp.include_router(admin_br_router)
+        dp.include_router(admin_rev_router)
+        dp.include_router(admin_sch_router)
+        dp.include_router(admin_ser_router)
+        dp.include_router(admin_stat_router)
+        dp.include_router(user_rev_router)
+        logging.info("Все модули логики подключены.")
+
+    await bot.delete_webhook(drop_pending_updates=True)
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except (KeyboardInterrupt, SystemExit):
-        logging.info("Бот остановлен пользователем.")
+    asyncio.run(main())
