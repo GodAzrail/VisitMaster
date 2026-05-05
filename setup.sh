@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Цвета для красоты и читаемости
+# Цвета
 export GREEN='\033[0;32m'
 export BLUE='\033[0;34m'
 export YELLOW='\033[1;33m'
@@ -8,7 +8,7 @@ export RED='\033[0;31m'
 export BOLD='\033[1m'
 export NC='\033[0m'
 
-# Ссылка на твой репозиторий
+# Ссылка на репозиторий
 REPO_URL="https://github.com/GodAzrail/VisitMaster.git"
 
 show_header() {
@@ -46,11 +46,9 @@ list_bots() {
 install_bot() {
     show_header
     echo -e "${BOLD}УСТАНОВКА НОВОГО БОТА${NC}\n"
-    
-    read -p "Введите имя для папки бота (напр. barber): " folder_name
+    read -p "Имя папки для бота (напр. barber): " folder_name
     bot_service_name="tg_booking_$folder_name"
-    # Путь создается в текущей директории, где лежит сам setup.sh
-    target_dir="$(pwd)/$folder_name"
+    target_dir="/home/azrail/$folder_name"
 
     if [ -d "$target_dir" ]; then
         error "Папка $folder_name уже существует!"
@@ -61,36 +59,27 @@ install_bot() {
     read -p "ID админа: " admin_id
     read -p "Часовой пояс (напр. Asia/Krasnoyarsk): " tz
 
-    # Клонируем прямо в указанную папку, чтобы не было матрешки
-    msg "Клонируем код в $target_dir..."
-    git clone "$REPO_URL" "$target_dir" || { error "Ошибка клонирования!"; return; }
+    msg "Клонируем в $target_dir..."
+    git clone "$REPO_URL" "$target_dir" || { error "Ошибка!"; return; }
     
     cd "$target_dir" || return
+    echo -e "BOT_TOKEN=$token\nSUPER_ADMIN_ID=$admin_id\nTIMEZONE=$tz\nBOT_NAME=$bot_service_name" > .env
 
-    # Создаем конфиг
-    echo "BOT_TOKEN=$token" > .env
-    echo "SUPER_ADMIN_ID=$admin_id" >> .env
-    echo "TIMEZONE=$tz" >> .env
-    echo "BOT_NAME=$bot_service_name" >> .env
-
-    # Настраиваем окружение
-    msg "Создаем виртуальное окружение..."
+    msg "Настройка окружения..."
     python3 -m venv venv
     source venv/bin/activate
     pip install --upgrade pip -q
-    # Ставим зависимости. Фиксируем версию APScheduler
     pip install --no-cache-dir APScheduler==3.10.4 aiogram==3.13.1 aiosqlite==0.20.0 python-dotenv ics -q
 
-    # Создаем файл службы
-    msg "Регистрируем сервис $bot_service_name..."
-    USER_NAME=$(whoami)
+    msg "Регистрация сервиса..."
+    USER_VAL=$(whoami)
     SERVICE_FILE="[Unit]
 Description=VisitMaster Bot: $bot_service_name
 After=network.target
 
 [Service]
 Type=simple
-User=$USER_NAME
+User=$USER_VAL
 WorkingDirectory=$target_dir
 ExecStart=$target_dir/venv/bin/python3 $target_dir/main.py
 Restart=always
@@ -102,55 +91,62 @@ WantedBy=multi-user.target"
     sudo systemctl daemon-reload
     sudo systemctl enable "$bot_service_name"
     sudo systemctl start "$bot_service_name"
-    
-    success "Бот установлен и запущен!"
+    success "Бот запущен!"
     cd ..
+}
+
+manage_bots() {
+    list_bots || return
+    echo -ne "\nНомер бота: "; read bot_num
+    if [[ "$bot_num" =~ ^[0-9]+$ ]] && [ "$bot_num" -ge 1 ] && [ "$bot_num" -le "${#BOTS[@]}" ]; then
+        selected_bot="${BOTS[$((bot_num-1))]}"
+        echo -e "1. Старт  2. Стоп  3. Рестарт  0. Отмена"; read -p "Действие: " act
+        [[ "$act" == "1" ]] && sudo systemctl start "$selected_bot" && success "Запущен"
+        [[ "$act" == "2" ]] && sudo systemctl stop "$selected_bot" && warn "Остановлен"
+        [[ "$act" == "3" ]] && sudo systemctl restart "$selected_bot" && success "Перезагружен"
+    fi
+}
+
+view_logs() {
+    list_bots || return
+    echo -ne "\nНомер бота для логов: "; read bot_num
+    if [[ "$bot_num" =~ ^[0-9]+$ ]] && [ "$bot_num" -ge 1 ] && [ "$bot_num" -le "${#BOTS[@]}" ]; then
+        selected_bot="${BOTS[$((bot_num-1))]}"
+        msg "Логи $selected_bot (Ctrl+C для выхода)..."
+        sudo journalctl -u "$selected_bot" -f -n 50
+    fi
 }
 
 delete_bot() {
     list_bots || return
-    echo -ne "\n${BOLD}Введите НОМЕР для УДАЛЕНИЯ (0 - отмена): ${NC}"
-    read bot_num
-    
+    echo -ne "\nНомер для УДАЛЕНИЯ: "; read bot_num
     if [[ "$bot_num" =~ ^[0-9]+$ ]] && [ "$bot_num" -ge 1 ] && [ "$bot_num" -le "${#BOTS[@]}" ]; then
         selected_bot="${BOTS[$((bot_num-1))]}"
-        
-        # Находим путь к папке из конфига сервиса
         folder_path=$(grep "WorkingDirectory" "/etc/systemd/system/$selected_bot.service" | cut -d'=' -f2)
-
-        warn "Удаляем $selected_bot..."
         sudo systemctl stop "$selected_bot"
         sudo systemctl disable "$selected_bot"
         sudo rm "/etc/systemd/system/$selected_bot.service"
         sudo systemctl daemon-reload
-        
-        if [ -d "$folder_path" ]; then
-            read -p "Удалить папку проекта $folder_path? (y/n): " confirm
-            [[ "$confirm" == "y" ]] && rm -rf "$folder_path" && success "Папка стерта."
-        fi
+        [[ -d "$folder_path" ]] && rm -rf "$folder_path" && success "Папка $folder_path удалена."
         success "Бот удален."
-    else
-        error "Отмена или неверный номер."
     fi
 }
 
-# ... функции manage_bots и view_logs остаются такими же ...
-
 while true; do
     show_header
-    echo -e "  1. Установить нового бота"
-    echo -e "  2. Проверить статусы"
-    echo -e "  3. Управление (Старт/Стоп/Рестарт)"
-    echo -e "  4. Посмотреть логи"
-    echo -e "  5. Удалить бота и папку"
+    echo -e "  1. Установить бота"
+    echo -e "  2. Статусы"
+    echo -e "  3. Управление"
+    echo -e "  4. Логи"
+    echo -e "  5. ${RED}Удалить${NC}"
     echo -e "  6. Выход"
-    read -p "Действие: " choice
+    read -p "Выбор: " choice
     case $choice in
-        1) install_bot; read -p "Enter..." ;;
-        2) list_bots; read -p "Enter..." ;;
-        3) manage_bots; read -p "Enter..." ;;
-        4) view_logs; read -p "Enter..." ;;
-        5) delete_bot; read -p "Enter..." ;;
+        1) install_bot; read -p "Нажмите Enter..." ;;
+        2) list_bots; read -p "Нажмите Enter..." ;;
+        3) manage_bots; read -p "Нажмите Enter..." ;;
+        4) view_logs; read -p "Нажмите Enter..." ;;
+        5) delete_bot; read -p "Нажмите Enter..." ;;
         6) exit 0 ;;
     esac
 done
